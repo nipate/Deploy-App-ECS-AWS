@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'TaskMaster Dev Environment - Complete Stack'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Environment name
+
+Resources:
+  # ECR Repository already exists - no need to recreate
+
+  # CloudWatch Log Group
+  TaskMasterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/taskmaster-backend-dev
+      RetentionInDays: 7
+
+  # ECS Service
+  TaskMasterService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: taskmaster-backend-dev
+      Cluster: !ImportValue dev-ECSCluster
+      TaskDefinition: !Ref TaskMasterTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !ImportValue dev-ECSSecurityGroup
+          Subnets:
+            - !Select [0, !Split [',', !ImportValue dev-PrivateSubnets]]
+            - !Select [1, !Split [',', !ImportValue dev-PrivateSubnets]]
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: taskmaster-backend
+          ContainerPort: 5000
+          TargetGroupArn: !ImportValue dev-DefaultTargetGroup
+
+  # Task Definition (placeholder - will be updated by CI/CD)
+  TaskMasterTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: taskmaster-backend-dev
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 256
+      Memory: 512
+      ExecutionRoleArn: !ImportValue dev-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue dev-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: taskmaster-backend
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmaster-backend:latest'
+          PortMappings:
+            - ContainerPort: 5000
+              Protocol: tcp
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskMasterLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+
+Outputs:
+
+  ServiceName:
+    Description: ECS Service Name
+    Value: !Ref TaskMasterService
+    Export:
+      Name: TaskMasterDevService

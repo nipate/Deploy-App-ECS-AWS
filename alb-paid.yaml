@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Application Load Balancer - PAID resources (~$16/month)'
+
+Resources:
+  # Application Load Balancer (PAID - ~$16/month)
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: dev-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Split [',', !ImportValue dev-PublicSubnets]
+      SecurityGroups:
+        - !ImportValue dev-ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: dev-alb
+
+  # Default Target Group (FREE)
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: dev-default-tg
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !ImportValue dev-VPC
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  # ALB Listener (FREE)
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+  ALBArn:
+    Description: Application Load Balancer ARN
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: dev-ALBArn
+
+  ALBDNSName:
+    Description: Application Load Balancer DNS Name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: dev-ALBDNSName
+
+  ALBListenerArn:
+    Description: ALB Listener ARN
+    Value: !Ref ALBListener
+    Export:
+      Name: dev-ALBListenerArn
+
+  DefaultTargetGroup:
+    Description: Default Target Group ARN
+    Value: !Ref DefaultTargetGroup
+    Export:
+      Name: dev-DefaultTargetGroup

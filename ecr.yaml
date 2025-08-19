@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECR repository for TaskMaster backend'
+
+Resources:
+  # TaskMaster Backend Repository
+  TaskMasterBackendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: taskmaster-backend
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+Outputs:
+  TaskMasterBackendRepositoryURI:
+    Description: TaskMaster Backend ECR Repository URI
+    Value: !GetAtt TaskMasterBackendRepository.RepositoryUri
+    Export:
+      Name: dev-TaskMasterBackendRepositoryURI
