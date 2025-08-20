@@ -34,49 +34,124 @@
 
 ## 🏗️ Architecture
 
-### High-Level Architecture Diagram
+### Multi-Environment CI/CD Architecture
 ```mermaid
 graph TB
-    subgraph "AWS Cloud"
-        subgraph "VPC (10.1.0.0/16)"
-            subgraph "Public Subnets"
-                ALB[Application Load Balancer]
+    subgraph "Development Workflow"
+        DEV[👨‍💻 Developer]
+        CODE[📝 Code Changes]
+    end
+    
+    subgraph "GitHub Platform"
+        REPO[📦 GitHub Repository]
+        ACTIONS[🤖 GitHub Actions]
+        SECRETS[🔐 AWS Secrets]
+    end
+    
+    subgraph "AWS Cloud Infrastructure"
+        subgraph "CI/CD Pipeline (FREE)"
+            CB[🏗️ CodeBuild Project]
+            ECR[📦 ECR Repository]
+        end
+        
+        subgraph "VPC Network (10.1.0.0/16)"
+            subgraph "Shared Resources (FREE)"
+                IAM[🔐 IAM Roles]
+                SG[🛡️ Security Groups]
+                CLUSTER[🚀 ECS Cluster]
             end
-            subgraph "Private Subnets"
-                ECS[ECS Fargate Tasks]
+            
+            subgraph "Dev Environment (PAID)"
+                ALB_DEV[⚖️ Dev ALB]
+                ECS_DEV[🐳 Dev ECS Tasks]
+                TG_DEV[🎯 Dev Target Group]
+            end
+            
+            subgraph "Staging Environment (PAID)"
+                ALB_STAGE[⚖️ Staging ALB]
+                ECS_STAGE[🐳 Staging ECS Tasks]
+                TG_STAGE[🎯 Staging Target Group]
             end
         end
         
-        ECR[Elastic Container Registry]
-        CB[CodeBuild]
-        CW[CloudWatch Logs]
+        subgraph "Monitoring (FREE)"
+            CW[📊 CloudWatch Logs]
+            HEALTH[💚 Health Checks]
+        end
     end
     
-    subgraph "External"
-        USER[End Users]
-        GH[GitHub Repository]
-        DEV[Developer]
+    subgraph "End Users"
+        DEVS[👨‍💻 Developers]
+        QA[🧪 QA Team]
+        DASH[📱 Multi-Env Dashboard]
     end
     
-    USER --> ALB
-    ALB --> ECS
-    ECS --> CW
+    %% Development Flow
+    DEV --> CODE
+    CODE --> REPO
+    REPO --> ACTIONS
     
-    DEV --> GH
-    GH --> CB
+    %% CI/CD Pipeline
+    ACTIONS --> CB
+    ACTIONS -.-> SECRETS
     CB --> ECR
-    ECR --> ECS
+    
+    %% Multi-Environment Deployment
+    ECR --> ECS_DEV
+    ECR --> ECS_STAGE
+    
+    %% Load Balancer Integration
+    ALB_DEV --> TG_DEV
+    ALB_STAGE --> TG_STAGE
+    TG_DEV --> ECS_DEV
+    TG_STAGE --> ECS_STAGE
+    
+    %% Security & Monitoring
+    IAM -.-> ECS_DEV
+    IAM -.-> ECS_STAGE
+    SG -.-> ALB_DEV
+    SG -.-> ALB_STAGE
+    ECS_DEV --> CW
+    ECS_STAGE --> CW
+    ALB_DEV --> HEALTH
+    ALB_STAGE --> HEALTH
+    
+    %% User Access
+    DEVS --> ALB_DEV
+    QA --> ALB_STAGE
+    DASH --> ALB_DEV
+    DASH --> ALB_STAGE
+    
+    %% Styling
+    classDef freeResource fill:#d4edda,stroke:#28a745,stroke-width:2px
+    classDef paidResource fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+    classDef cicdResource fill:#cce5ff,stroke:#007bff,stroke-width:2px
+    
+    class IAM,SG,CLUSTER,ECR,CB,CW,HEALTH freeResource
+    class ALB_DEV,ALB_STAGE,ECS_DEV,ECS_STAGE,TG_DEV,TG_STAGE paidResource
+    class REPO,ACTIONS,SECRETS cicdResource
 ```
 
-### Cost-Optimized Design
+### Cost-Optimized Multi-Environment Design
 ```
-Internet → ALB (750hrs Free) → ECS Fargate (Pay per use)
-                ↓                      ↓
-        Target Groups          CloudWatch Logs (5GB Free)
-                ↓                      ↓
-        Health Checks          Application Monitoring
-                ↓                      ↓
-        Auto Scaling          Cost: ~$0.70/day (demo mode)
+🆓 GitHub Actions → 🆓 CodeBuild → 🆓 ECR (500MB) → 🆓 ECS Cluster
+                                    ↓
+              📊 Automated Multi-Environment Deployment
+                                    ↓
+        🔧 Dev Environment                    🎭 Staging Environment
+              ↓                                    ↓
+        💸 Dev ALB (~$16/month)              💸 Staging ALB (~$16/month)
+              ↓                                    ↓
+        💸 Dev Fargate (~$5/month)           💸 Staging Fargate (~$5/month)
+              ↓                                    ↓
+        🆓 CloudWatch Logs (5GB Free)       🆓 CloudWatch Logs (5GB Free)
+              ↓                                    ↓
+        📱 Single Dashboard                  📱 Multi-Env Dashboard
+
+💰 Daily Cost Control:
+├── 24/7 Multi-Environment: ~$42/month
+├── Daily Demo (8 hours): ~$4.20/month (90% savings)
+└── Dev Only: ~$2.10/month (95% savings)
 ```
 
 ## 💰 Cost Breakdown by Service
