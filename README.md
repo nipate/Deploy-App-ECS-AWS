@@ -26,9 +26,11 @@
 - 🔐 **Multi-tenant Architecture** - Secure company data isolation
 - 📊 **Real-time Dashboard** - Live project and task updates
 - 🚀 **Serverless Containers** - ECS Fargate for scalability
-- 💰 **Cost Optimized** - Deploy/delete daily workflow saves 70% costs
-- 🔄 **CI/CD Pipeline** - Automated builds with CodeBuild
+- 💰 **Cost Optimized** - Deploy/delete daily workflow saves 90% costs
+- 🔄 **Full CI/CD Automation** - GitHub Actions + CodeBuild + Multi-Environment
+- 🎭 **Multi-Environment Pipeline** - Dev + Staging environments
 - 🌐 **CORS Enabled** - Browser-friendly API access
+- 📊 **Environment Comparison** - Side-by-side dashboard
 
 ## 🏗️ Architecture
 
@@ -241,40 +243,58 @@ aws cloudformation deploy --template-file codebuild-project.yaml --stack-name ta
 aws codebuild start-build --cli-input-json file://start-build-cors.json
 ```
 
-## 💰 Daily Demo Workflow (Cost Control)
+## 💰 Multi-Environment Daily Workflow (Cost Control)
 
-### 🌅 **Start Demo Day** (~$0.70/day)
+### 🌅 **Start Demo Day** (~$1.40/day)
 ```bash
-# Deploy ALB (Load Balancer) - Cost: ~$16/month
+# Deploy Dev Environment
 aws cloudformation deploy --template-file alb-paid.yaml --stack-name taskmaster-dev-alb --region us-east-1
-
-# Deploy Application (ECS Fargate) - Cost: ~$5/month
 aws cloudformation deploy --template-file infrastructure/dev/dev-stack.yaml --stack-name taskmaster-dev-app --region us-east-1 --capabilities CAPABILITY_IAM
 
-# Wait 3-5 minutes for deployment, then test
-curl http://ALB_DNS_NAME/health
+# Deploy Staging Environment
+aws cloudformation deploy --template-file alb-staging.yaml --stack-name taskmaster-staging-alb --region us-east-1
+aws cloudformation deploy --template-file infrastructure/staging/staging-stack.yaml --stack-name taskmaster-staging-app --region us-east-1 --capabilities CAPABILITY_IAM
+
+# Test both environments
+curl http://DEV_ALB_DNS/health
+curl http://STAGING_ALB_DNS/health
 ```
 
-### 🌐 **Access TaskMaster Dashboard**
+### 🌐 **Access Multi-Environment Dashboard**
 ```bash
 # Start local web server
 python -m http.server 8000
 
-# Open browser to: http://localhost:8000/demo-frontend.html
-# Enter ALB DNS when prompted (without http://)
+# Single Environment: http://localhost:8000/demo-frontend.html
+# Multi Environment: http://localhost:8000/multi-env-dashboard.html
+```
+
+### 🚀 **Automated CI/CD Pipeline**
+```bash
+# Push code to trigger automated deployment to both environments
+git add .
+git commit -m "Update application"
+git push origin main
+
+# GitHub Actions automatically:
+# 1. Builds Docker image with CodeBuild
+# 2. Pushes to ECR
+# 3. Deploys to Dev environment
+# 4. Deploys to Staging environment
+# 5. Runs health checks on both
 ```
 
 ### 🌙 **End Demo Day** (Stop All Charges)
 ```bash
-# Delete Application Stack (stops Fargate charges)
+# Delete All PAID Resources
 aws cloudformation delete-stack --stack-name taskmaster-dev-app
-
-# Delete ALB Stack (stops ALB charges)
+aws cloudformation delete-stack --stack-name taskmaster-staging-app
 aws cloudformation delete-stack --stack-name taskmaster-dev-alb
+aws cloudformation delete-stack --stack-name taskmaster-staging-alb
 
-# Verify deletion (should show DELETE_COMPLETE)
+# Verify all deletions
 aws cloudformation describe-stacks --stack-name taskmaster-dev-app --query "Stacks[0].StackStatus"
-aws cloudformation describe-stacks --stack-name taskmaster-dev-alb --query "Stacks[0].StackStatus"
+aws cloudformation describe-stacks --stack-name taskmaster-staging-app --query "Stacks[0].StackStatus"
 ```
 
 ## 🎯 **TaskMaster Features Demo**
@@ -387,27 +407,30 @@ aws ecs update-service --cluster dev-cluster --service taskmaster-backend-dev --
 - ✅ **AWS Integration**: 8+ services working together seamlessly
 
 ### ⏱️ Time Investment
-- **Initial Setup**: ~2 hours (one-time)
-- **Daily Demo**: ~5 minutes
-- **Learning Curve**: Beginner-friendly
+- **Initial Setup**: ~3 hours (one-time, includes CI/CD)
+- **Daily Multi-Env Demo**: ~8 minutes
+- **GitHub Actions Setup**: ~30 minutes (one-time)
+- **Learning Curve**: Intermediate (covers advanced DevOps)
 
 ### 💰 Cost Efficiency
-- **24/7 Mode**: ~$21/month
-- **Demo Mode**: ~$2.10/month (90% savings)
-- **ROI**: High learning value per dollar
+- **24/7 Multi-Environment**: ~$42/month
+- **Daily Demo Mode**: ~$4.20/month (90% savings)
+- **Dev Only Mode**: ~$2.10/month (95% savings)
+- **ROI**: Enterprise-level DevOps skills per dollar
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ### 📝 To Do
+- [x] ✅ Multi-environment CI/CD pipeline
+- [x] ✅ GitHub Actions automation
+- [x] ✅ Environment comparison dashboard
 - [ ] Add DynamoDB integration
 - [ ] Implement user authentication with Cognito
 - [ ] Add CloudFront distribution
+- [ ] Blue/Green deployment strategy
+- [ ] Automated testing in pipeline
 - [ ] Create Terraform version
-- [ ] Add monitoring dashboards
+- [ ] Add comprehensive monitoring dashboards
 
 ## 📄 License
 
