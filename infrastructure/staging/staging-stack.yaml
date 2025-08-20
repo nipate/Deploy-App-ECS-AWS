@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'TaskMaster Staging Environment - Complete Stack'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    Description: Environment name
+
+Resources:
+  # CloudWatch Log Group for Staging
+  TaskMasterStagingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/taskmaster-backend-staging
+      RetentionInDays: 7
+
+  # ECS Service for Staging
+  TaskMasterStagingService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: taskmaster-backend-staging
+      Cluster: !ImportValue dev-ECSCluster
+      TaskDefinition: !Ref TaskMasterStagingTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !ImportValue dev-ECSSecurityGroup
+          Subnets:
+            - !Select [0, !Split [',', !ImportValue dev-PrivateSubnets]]
+            - !Select [1, !Split [',', !ImportValue dev-PrivateSubnets]]
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: taskmaster-backend
+          ContainerPort: 5000
+          TargetGroupArn: !ImportValue staging-DefaultTargetGroup
+      Tags:
+        - Key: Environment
+          Value: staging
+
+  # Task Definition for Staging
+  TaskMasterStagingTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: taskmaster-backend-staging
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 256
+      Memory: 512
+      ExecutionRoleArn: !ImportValue dev-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue dev-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: taskmaster-backend
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmaster-backend:latest'
+          PortMappings:
+            - ContainerPort: 5000
+              Protocol: tcp
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: BUILD_NUMBER
+              Value: staging-latest
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskMasterStagingLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Essential: true
+      Tags:
+        - Key: Environment
+          Value: staging
+
+Outputs:
+  StagingServiceName:
+    Description: ECS Staging Service Name
+    Value: !Ref TaskMasterStagingService
+    Export:
+      Name: TaskMasterStagingService
+
+  StagingTaskDefinition:
+    Description: Staging Task Definition ARN
+    Value: !Ref TaskMasterStagingTaskDefinition
+    Export:
+      Name: TaskMasterStagingTaskDefinition

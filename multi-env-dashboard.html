@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskMaster - Multi-Environment Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { text-align: center; color: #333; margin-bottom: 30px; }
+        .environments { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .environment { background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff; }
+        .environment.staging { border-left-color: #28a745; }
+        .environment h2 { margin-top: 0; color: #333; }
+        .status { padding: 8px 16px; border-radius: 4px; font-weight: bold; margin: 10px 0; }
+        .status.healthy { background: #d4edda; color: #155724; }
+        .status.loading { background: #fff3cd; color: #856404; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .endpoint { background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 5px 0; font-family: monospace; }
+        .data-section { background: white; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .refresh-btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 10px 5px; }
+        .refresh-btn:hover { background: #0056b3; }
+        .comparison { background: white; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .comparison table { width: 100%; border-collapse: collapse; }
+        .comparison th, .comparison td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .comparison th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 TaskMaster Multi-Environment Dashboard</h1>
+            <p>Compare Dev and Staging Environments</p>
+            <button class="refresh-btn" onclick="loadAllData()">🔄 Refresh All Data</button>
+        </div>
+
+        <div class="environments">
+            <!-- Dev Environment -->
+            <div class="environment">
+                <h2>🔧 Development Environment</h2>
+                <div class="endpoint">
+                    <strong>URL:</strong> <span id="dev-url">Not configured</span>
+                </div>
+                <div id="dev-status" class="status loading">Checking...</div>
+                <button class="refresh-btn" onclick="loadEnvironmentData('dev')">Refresh Dev</button>
+                
+                <div class="data-section">
+                    <h3>Health Status</h3>
+                    <div id="dev-health">Loading...</div>
+                </div>
+                
+                <div class="data-section">
+                    <h3>Projects</h3>
+                    <div id="dev-projects">Loading...</div>
+                </div>
+                
+                <div class="data-section">
+                    <h3>Statistics</h3>
+                    <div id="dev-stats">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Staging Environment -->
+            <div class="environment staging">
+                <h2>🎭 Staging Environment</h2>
+                <div class="endpoint">
+                    <strong>URL:</strong> <span id="staging-url">Not configured</span>
+                </div>
+                <div id="staging-status" class="status loading">Checking...</div>
+                <button class="refresh-btn" onclick="loadEnvironmentData('staging')">Refresh Staging</button>
+                
+                <div class="data-section">
+                    <h3>Health Status</h3>
+                    <div id="staging-health">Loading...</div>
+                </div>
+                
+                <div class="data-section">
+                    <h3>Projects</h3>
+                    <div id="staging-projects">Loading...</div>
+                </div>
+                
+                <div class="data-section">
+                    <h3>Statistics</h3>
+                    <div id="staging-stats">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison">
+            <h2>📊 Environment Comparison</h2>
+            <table id="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Development</th>
+                        <th>Staging</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4">Loading comparison data...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let environments = {
+            dev: { url: '', data: {} },
+            staging: { url: '', data: {} }
+        };
+
+        function initializeEnvironments() {
+            const devUrl = prompt('Enter Dev ALB DNS (without http://):', 'dev-alb-xxx.us-east-1.elb.amazonaws.com');
+            const stagingUrl = prompt('Enter Staging ALB DNS (without http://):', 'staging-alb-xxx.us-east-1.elb.amazonaws.com');
+            
+            if (devUrl) {
+                environments.dev.url = `http://${devUrl}`;
+                document.getElementById('dev-url').textContent = environments.dev.url;
+            }
+            
+            if (stagingUrl) {
+                environments.staging.url = `http://${stagingUrl}`;
+                document.getElementById('staging-url').textContent = environments.staging.url;
+            }
+        }
+
+        async function loadEnvironmentData(env) {
+            if (!environments[env].url) {
+                document.getElementById(`${env}-status`).textContent = 'URL not configured';
+                document.getElementById(`${env}-status`).className = 'status error';
+                return;
+            }
+
+            try {
+                document.getElementById(`${env}-status`).textContent = 'Loading...';
+                document.getElementById(`${env}-status`).className = 'status loading';
+
+                // Load health data
+                const healthResponse = await fetch(`${environments[env].url}/health`);
+                const healthData = await healthResponse.json();
+                environments[env].data.health = healthData;
+                
+                // Load projects data
+                const projectsResponse = await fetch(`${environments[env].url}/api/projects`);
+                const projectsData = await projectsResponse.json();
+                environments[env].data.projects = projectsData;
+                
+                // Load stats data
+                const statsResponse = await fetch(`${environments[env].url}/api/stats`);
+                const statsData = await statsResponse.json();
+                environments[env].data.stats = statsData;
+
+                // Update UI
+                updateEnvironmentUI(env);
+                updateComparison();
+
+                document.getElementById(`${env}-status`).textContent = 'Healthy';
+                document.getElementById(`${env}-status`).className = 'status healthy';
+
+            } catch (error) {
+                console.error(`Error loading ${env} data:`, error);
+                document.getElementById(`${env}-status`).textContent = 'Connection Failed';
+                document.getElementById(`${env}-status`).className = 'status error';
+            }
+        }
+
+        function updateEnvironmentUI(env) {
+            const data = environments[env].data;
+            
+            // Update health
+            if (data.health) {
+                document.getElementById(`${env}-health`).innerHTML = `
+                    <strong>Status:</strong> ${data.health.status}<br>
+                    <strong>Environment:</strong> ${data.health.environment}<br>
+                    <strong>Version:</strong> ${data.health.version || 'N/A'}<br>
+                    <strong>Deployed By:</strong> ${data.health.deployed_by || 'Manual'}
+                `;
+            }
+            
+            // Update projects
+            if (data.projects) {
+                document.getElementById(`${env}-projects`).innerHTML = `
+                    <strong>Total Projects:</strong> ${data.projects.total}<br>
+                    ${data.projects.projects.map(p => `• ${p.name} (${p.status})`).join('<br>')}
+                `;
+            }
+            
+            // Update stats
+            if (data.stats) {
+                document.getElementById(`${env}-stats`).innerHTML = `
+                    <strong>Active Projects:</strong> ${data.stats.active_projects}<br>
+                    <strong>Total Tasks:</strong> ${data.stats.total_tasks}<br>
+                    <strong>Completed Tasks:</strong> ${data.stats.completed_tasks}<br>
+                    <strong>Team Members:</strong> ${data.stats.team_members}
+                `;
+            }
+        }
+
+        function updateComparison() {
+            const devData = environments.dev.data;
+            const stagingData = environments.staging.data;
+            
+            if (!devData.stats || !stagingData.stats) return;
+            
+            const tbody = document.querySelector('#comparison-table tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td>Environment</td>
+                    <td>${devData.health?.environment || 'N/A'}</td>
+                    <td>${stagingData.health?.environment || 'N/A'}</td>
+                    <td>✅ Match</td>
+                </tr>
+                <tr>
+                    <td>Total Projects</td>
+                    <td>${devData.stats.total_projects}</td>
+                    <td>${stagingData.stats.total_projects}</td>
+                    <td>${devData.stats.total_projects === stagingData.stats.total_projects ? '✅ Match' : '⚠️ Differ'}</td>
+                </tr>
+                <tr>
+                    <td>Total Tasks</td>
+                    <td>${devData.stats.total_tasks}</td>
+                    <td>${stagingData.stats.total_tasks}</td>
+                    <td>${devData.stats.total_tasks === stagingData.stats.total_tasks ? '✅ Match' : '⚠️ Differ'}</td>
+                </tr>
+                <tr>
+                    <td>Team Members</td>
+                    <td>${devData.stats.team_members}</td>
+                    <td>${stagingData.stats.team_members}</td>
+                    <td>${devData.stats.team_members === stagingData.stats.team_members ? '✅ Match' : '⚠️ Differ'}</td>
+                </tr>
+                <tr>
+                    <td>Deployment Method</td>
+                    <td>${devData.health?.deployed_by || 'Manual'}</td>
+                    <td>${stagingData.health?.deployed_by || 'Manual'}</td>
+                    <td>📊 Info</td>
+                </tr>
+            `;
+        }
+
+        function loadAllData() {
+            loadEnvironmentData('dev');
+            loadEnvironmentData('staging');
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            initializeEnvironments();
+            if (environments.dev.url && environments.staging.url) {
+                loadAllData();
+            }
+        };
+    </script>
+</body>
+</html>

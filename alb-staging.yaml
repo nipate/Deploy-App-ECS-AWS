@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Staging Application Load Balancer - PAID resources (~$16/month)'
+
+Resources:
+  # Staging Application Load Balancer (PAID - ~$16/month)
+  StagingApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: staging-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Split [',', !ImportValue dev-PublicSubnets]
+      SecurityGroups:
+        - !ImportValue dev-ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: staging-alb
+        - Key: Environment
+          Value: staging
+
+  # Staging Target Group (FREE)
+  StagingTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: staging-default-tg
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !ImportValue dev-VPC
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Tags:
+        - Key: Environment
+          Value: staging
+
+  # Staging ALB Listener (FREE)
+  StagingALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref StagingTargetGroup
+      LoadBalancerArn: !Ref StagingApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+  StagingALBArn:
+    Description: Staging Application Load Balancer ARN
+    Value: !Ref StagingApplicationLoadBalancer
+    Export:
+      Name: staging-ALBArn
+
+  StagingALBDNSName:
+    Description: Staging Application Load Balancer DNS Name
+    Value: !GetAtt StagingApplicationLoadBalancer.DNSName
+    Export:
+      Name: staging-ALBDNSName
+
+  StagingALBListenerArn:
+    Description: Staging ALB Listener ARN
+    Value: !Ref StagingALBListener
+    Export:
+      Name: staging-ALBListenerArn
+
+  StagingTargetGroup:
+    Description: Staging Target Group ARN
+    Value: !Ref StagingTargetGroup
+    Export:
+      Name: staging-DefaultTargetGroup

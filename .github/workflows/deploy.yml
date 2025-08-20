@@ -1,4 +1,4 @@
-name: 🚀 TaskMaster CI/CD Pipeline
+name: 🚀 TaskMaster Multi-Environment CI/CD Pipeline
 
 on:
   push:
@@ -12,9 +12,10 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: taskmaster-backend
-  ECS_SERVICE: taskmaster-backend-dev
   ECS_CLUSTER: dev-cluster
   CODEBUILD_PROJECT: taskmaster-build
+  DEV_ECS_SERVICE: taskmaster-backend-dev
+  STAGING_ECS_SERVICE: taskmaster-backend-staging
 
 jobs:
   build-and-deploy:
@@ -66,38 +67,72 @@ jobs:
           sleep 30
         done
         
-    - name: 🚀 Deploy to ECS
+    - name: 🚀 Deploy to Dev Environment
       run: |
-        echo "🚀 Deploying to ECS..."
+        echo "🚀 Deploying to Dev Environment..."
         aws ecs update-service \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --service ${{ env.ECS_SERVICE }} \
+          --service ${{ env.DEV_ECS_SERVICE }} \
           --force-new-deployment \
           --query 'service.serviceName' --output text
           
-        echo "✅ ECS deployment triggered!"
+        echo "✅ Dev deployment triggered!"
         
-    - name: 🔍 Verify deployment
+    - name: 🎭 Deploy to Staging Environment
       run: |
-        echo "🔍 Verifying deployment..."
+        echo "🎭 Deploying to Staging Environment..."
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.STAGING_ECS_SERVICE }} \
+          --force-new-deployment \
+          --query 'service.serviceName' --output text
+          
+        echo "✅ Staging deployment triggered!"
         
-        # Wait for service to stabilize
+    - name: 🔍 Verify Multi-Environment Deployment
+      run: |
+        echo "🔍 Verifying deployments..."
+        
+        # Wait for both services to stabilize
+        echo "⏳ Waiting for Dev environment..."
         aws ecs wait services-stable \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --services ${{ env.ECS_SERVICE }}
+          --services ${{ env.DEV_ECS_SERVICE }}
           
-        # Get ALB DNS name
-        ALB_DNS=$(aws cloudformation describe-stacks \
+        echo "⏳ Waiting for Staging environment..."
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.STAGING_ECS_SERVICE }}
+          
+        # Get ALB DNS names
+        DEV_ALB=$(aws cloudformation describe-stacks \
           --stack-name taskmaster-dev-alb \
           --query "Stacks[0].Outputs[?OutputKey=='ALBDNSName'].OutputValue" \
           --output text)
           
-        echo "🌐 Application URL: http://$ALB_DNS"
+        STAGING_ALB=$(aws cloudformation describe-stacks \
+          --stack-name taskmaster-staging-alb \
+          --query "Stacks[0].Outputs[?OutputKey=='ALBDNSName'].OutputValue" \
+          --output text)
+          
+        echo "🌐 Dev URL: http://$DEV_ALB"
+        echo "🎭 Staging URL: http://$STAGING_ALB"
         
-        # Test health endpoint
-        if curl -f "http://$ALB_DNS/health"; then
-          echo "✅ Health check passed!"
+        # Test both environments
+        echo "🔍 Testing Dev environment..."
+        if curl -f "http://$DEV_ALB/health"; then
+          echo "✅ Dev health check passed!"
         else
-          echo "❌ Health check failed!"
+          echo "❌ Dev health check failed!"
           exit 1
         fi
+        
+        echo "🔍 Testing Staging environment..."
+        if curl -f "http://$STAGING_ALB/health"; then
+          echo "✅ Staging health check passed!"
+        else
+          echo "❌ Staging health check failed!"
+          exit 1
+        fi
+        
+        echo "🎉 Multi-environment deployment successful!"
