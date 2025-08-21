@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskMaster - Login Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .login-form { background: white; padding: 20px; border-radius: 8px; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .success { color: green; } .error { color: red; }
+        .hidden { display: none; }
+        .projects { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 TaskMaster - Authentication Demo</h1>
+    
+    <!-- Login Section -->
+    <div id="loginSection" class="container">
+        <h2>🔐 Login to TaskMaster</h2>
+        <div class="login-form">
+            <input type="email" id="email" placeholder="Email (patelnilomi@gmail.com)" value="patelnilomi@gmail.com">
+            <input type="password" id="password" placeholder="Password" value="MyPassword123!">
+            <button onclick="login()">Login</button>
+            <div id="loginStatus"></div>
+        </div>
+    </div>
+
+    <!-- Authenticated Section -->
+    <div id="authenticatedSection" class="container hidden">
+        <h2>✅ Welcome! You're logged in</h2>
+        <p><strong>User:</strong> <span id="userEmail"></span></p>
+        <p><strong>Token:</strong> <span id="tokenPreview"></span>...</p>
+        <button onclick="loadProjects()">Load My Projects</button>
+        <button onclick="logout()">Logout</button>
+        
+        <div id="projectsSection" class="projects hidden">
+            <h3>📋 Your Projects</h3>
+            <div id="projectsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://dev-alb-1715371777.us-east-1.elb.amazonaws.com';
+        let currentToken = null;
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const status = document.getElementById('loginStatus');
+            
+            status.innerHTML = '🔄 Logging in...';
+            
+            try {
+                // Simulate Cognito login (in real app, use AWS SDK)
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    currentToken = data.token;
+                    status.innerHTML = '<div class="success">✅ Login successful!</div>';
+                    
+                    // Show authenticated section
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('authenticatedSection').classList.remove('hidden');
+                    document.getElementById('userEmail').textContent = email;
+                    document.getElementById('tokenPreview').textContent = data.token.substring(0, 50);
+                } else {
+                    status.innerHTML = '<div class="error">❌ Login failed</div>';
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="error">❌ Connection error</div>';
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch(`${API_BASE}/api/projects`, {
+                    headers: {
+                        'Authorization': currentToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('projectsSection').classList.remove('hidden');
+                document.getElementById('projectsList').innerHTML = `
+                    <p><strong>Data Source:</strong> ${data.source}</p>
+                    <p><strong>Auth Status:</strong> ${data.auth}</p>
+                    <ul>
+                        ${data.projects.map(p => `<li><strong>${p.name}</strong> - ${p.status}</li>`).join('')}
+                    </ul>
+                `;
+            } catch (error) {
+                document.getElementById('projectsList').innerHTML = '<div class="error">❌ Failed to load projects</div>';
+            }
+        }
+
+        function logout() {
+            currentToken = null;
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('authenticatedSection').classList.add('hidden');
+            document.getElementById('projectsSection').classList.add('hidden');
+            document.getElementById('loginStatus').innerHTML = '';
+        }
+
+        // Test API connection on load
+        window.onload = async function() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                console.log('API Status:', data);
+            } catch (error) {
+                console.log('API connection failed');
+            }
+        }
+    </script>
+</body>
+</html>

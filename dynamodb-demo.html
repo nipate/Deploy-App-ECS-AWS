@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskMaster - DynamoDB Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .form-section { background: white; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .success { color: green; } .error { color: red; }
+        .data-display { background: white; padding: 15px; border-radius: 8px; }
+        .project-item, .task-item { border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 TaskMaster - DynamoDB Demo</h1>
+    
+    <!-- Add Project Section -->
+    <div class="container">
+        <h2>➕ Add New Project</h2>
+        <div class="form-section">
+            <input type="text" id="projectName" placeholder="Project Name (e.g., Website Redesign)">
+            <input type="text" id="projectStatus" placeholder="Status (e.g., active, planning)" value="planning">
+            <button onclick="addProject()">Add Project</button>
+            <div id="projectStatus"></div>
+        </div>
+    </div>
+
+    <!-- Add Task Section -->
+    <div class="container">
+        <h2>📝 Add New Task</h2>
+        <div class="form-section">
+            <input type="text" id="taskTitle" placeholder="Task Title (e.g., Design homepage)">
+            <input type="text" id="taskProjectId" placeholder="Project ID (get from projects list below)">
+            <input type="text" id="taskAssignee" placeholder="Assignee (e.g., John Doe)" value="Demo User">
+            <input type="text" id="taskStatus" placeholder="Status (e.g., todo, in_progress)" value="todo">
+            <button onclick="addTask()">Add Task</button>
+            <div id="taskStatus"></div>
+        </div>
+    </div>
+
+    <!-- View Data Section -->
+    <div class="container">
+        <h2>📊 View DynamoDB Data</h2>
+        <button onclick="loadProjects()">🔄 Refresh Projects</button>
+        <button onclick="loadTasks()">🔄 Refresh Tasks</button>
+        
+        <div id="projectsData" class="data-display">
+            <h3>📋 Projects (Click Refresh to load)</h3>
+        </div>
+        
+        <div id="tasksData" class="data-display">
+            <h3>✅ Tasks (Click Refresh to load)</h3>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://dev-alb-1715371777.us-east-1.elb.amazonaws.com';
+
+        async function addProject() {
+            const name = document.getElementById('projectName').value;
+            const status = document.getElementById('projectStatus').value;
+            const statusDiv = document.getElementById('projectStatus');
+            
+            if (!name) {
+                statusDiv.innerHTML = '<div class="error">❌ Please enter project name</div>';
+                return;
+            }
+            
+            statusDiv.innerHTML = '🔄 Adding project...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/projects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, status })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `<div class="success">✅ Project added! ID: ${data.project.project_id}</div>`;
+                    document.getElementById('projectName').value = '';
+                    loadProjects(); // Auto refresh
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Failed to add project</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Connection error</div>';
+            }
+        }
+
+        async function addTask() {
+            const title = document.getElementById('taskTitle').value;
+            const project_id = document.getElementById('taskProjectId').value;
+            const assignee = document.getElementById('taskAssignee').value;
+            const status = document.getElementById('taskStatus').value;
+            const statusDiv = document.getElementById('taskStatus');
+            
+            if (!title || !project_id) {
+                statusDiv.innerHTML = '<div class="error">❌ Please enter title and project ID</div>';
+                return;
+            }
+            
+            statusDiv.innerHTML = '🔄 Adding task...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, project_id, assignee, status })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `<div class="success">✅ Task added! ID: ${data.task.task_id}</div>`;
+                    document.getElementById('taskTitle').value = '';
+                    document.getElementById('taskProjectId').value = '';
+                    loadTasks(); // Auto refresh
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Failed to add task</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Connection error</div>';
+            }
+        }
+
+        async function loadProjects() {
+            const projectsDiv = document.getElementById('projectsData');
+            projectsDiv.innerHTML = '<h3>📋 Projects</h3><p>🔄 Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/projects`);
+                const data = await response.json();
+                
+                let html = `<h3>📋 Projects (Source: ${data.source})</h3>`;
+                
+                if (data.projects && data.projects.length > 0) {
+                    data.projects.forEach(project => {
+                        html += `
+                            <div class="project-item">
+                                <strong>🎯 ${project.name}</strong><br>
+                                <small>ID: ${project.project_id} | Status: ${project.status}</small>
+                                ${project.created_at ? `<br><small>Created: ${project.created_at}</small>` : ''}
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += '<p>No projects found. Add some above!</p>';
+                }
+                
+                projectsDiv.innerHTML = html;
+            } catch (error) {
+                projectsDiv.innerHTML = '<h3>📋 Projects</h3><div class="error">❌ Failed to load projects</div>';
+            }
+        }
+
+        async function loadTasks() {
+            const tasksDiv = document.getElementById('tasksData');
+            tasksDiv.innerHTML = '<h3>✅ Tasks</h3><p>🔄 Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tasks`);
+                const data = await response.json();
+                
+                let html = `<h3>✅ Tasks (Source: ${data.source})</h3>`;
+                
+                if (data.tasks && data.tasks.length > 0) {
+                    data.tasks.forEach(task => {
+                        html += `
+                            <div class="task-item">
+                                <strong>📝 ${task.title}</strong><br>
+                                <small>ID: ${task.task_id} | Project: ${task.project_id}</small><br>
+                                <small>Assignee: ${task.assignee} | Status: ${task.status}</small>
+                                ${task.created_at ? `<br><small>Created: ${task.created_at}</small>` : ''}
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += '<p>No tasks found. Add some above!</p>';
+                }
+                
+                tasksDiv.innerHTML = html;
+            } catch (error) {
+                tasksDiv.innerHTML = '<h3>✅ Tasks</h3><div class="error">❌ Failed to load tasks</div>';
+            }
+        }
+
+        // Load data on page load
+        window.onload = function() {
+            loadProjects();
+            loadTasks();
+        }
+    </script>
+</body>
+</html>

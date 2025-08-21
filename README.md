@@ -23,7 +23,7 @@
 **TaskMaster** is a production-ready SaaS task management platform that helps companies manage projects, assign tasks, and track team productivity through a web-based dashboard with real-time updates and analytics.
 
 ### ✨ Key Features
-- 🔐 **Multi-tenant Architecture** - Secure company data isolation
+- 🔐 **Multi-tenant Architecture** - Secure company data isolation with Cognito
 - 📊 **Real-time Dashboard** - Live project and task updates
 - 🚀 **Serverless Containers** - ECS Fargate for scalability
 - 💰 **Cost Optimized** - Deploy/delete daily workflow saves 90% costs
@@ -31,6 +31,9 @@
 - 🎭 **Multi-Environment Pipeline** - Dev + Staging environments
 - 🌐 **CORS Enabled** - Browser-friendly API access
 - 📊 **Environment Comparison** - Side-by-side dashboard
+- 🔑 **JWT Authentication** - AWS Cognito user management
+- 🗄️ **NoSQL Database** - DynamoDB for scalable data storage
+- 👤 **User Management** - Signup, login, company isolation
 
 ## 🏗️ Architecture
 
@@ -59,6 +62,8 @@ graph TB
                 IAM[🔐 IAM Roles]
                 SG[🛡️ Security Groups]
                 CLUSTER[🚀 ECS Cluster]
+                COGNITO[🔑 Cognito User Pools]
+                DYNAMODB[🗄️ DynamoDB Tables]
             end
             
             subgraph "Dev Environment (PAID)"
@@ -77,6 +82,7 @@ graph TB
         subgraph "Monitoring (FREE)"
             CW[📊 CloudWatch Logs]
             HEALTH[💚 Health Checks]
+            AUTH[🔐 JWT Validation]
         end
     end
     
@@ -127,7 +133,7 @@ graph TB
     classDef paidResource fill:#f8d7da,stroke:#dc3545,stroke-width:2px
     classDef cicdResource fill:#cce5ff,stroke:#007bff,stroke-width:2px
     
-    class IAM,SG,CLUSTER,ECR,CB,CW,HEALTH freeResource
+    class IAM,SG,CLUSTER,ECR,CB,CW,HEALTH,COGNITO,DYNAMODB,AUTH freeResource
     class ALB_DEV,ALB_STAGE,ECS_DEV,ECS_STAGE,TG_DEV,TG_STAGE paidResource
     class REPO,ACTIONS,SECRETS cicdResource
 ```
@@ -144,9 +150,13 @@ graph TB
               ↓                                    ↓
         💸 Dev Fargate (~$5/month)           💸 Staging Fargate (~$5/month)
               ↓                                    ↓
+        🆓 Cognito User Pool (50K users)    🆓 Cognito User Pool (50K users)
+              ↓                                    ↓
+        🆓 DynamoDB (25GB Free)              🆓 DynamoDB (25GB Free)
+              ↓                                    ↓
         🆓 CloudWatch Logs (5GB Free)       🆓 CloudWatch Logs (5GB Free)
               ↓                                    ↓
-        📱 Single Dashboard                  📱 Multi-Env Dashboard
+        📱 Authenticated Dashboard           📱 Multi-Env Dashboard
 
 💰 Daily Cost Control:
 ├── 24/7 Multi-Environment: ~$42/month
@@ -163,6 +173,8 @@ graph TB
 | **ECR** | $0 - $0.50 | ✅ 500MB Free | $0.10/GB after free tier |
 | **ECS Fargate** | ~$5 | ❌ No Free Tier | 0.25 vCPU, 0.5GB RAM |
 | **ALB** | ~$16 | ✅ 750hrs Free | $16.20/month + $0.008/LCU-hour |
+| **Cognito** | $0 | ✅ 50K MAUs Free | User authentication and management |
+| **DynamoDB** | $0 - $2 | ✅ 25GB Free | NoSQL database with auto-scaling |
 | **CloudWatch Logs** | $0 - $1 | ✅ 5GB Free | $0.50/GB ingested after free tier |
 | **Data Transfer** | $0 - $2 | ✅ 1GB Free | $0.09/GB after free tier |
 
@@ -212,14 +224,30 @@ TaskMaster VPC: 10.1.0.0/16
 4. Running app (TaskRole) → Accesses AWS services
 ```
 
-### 3. Core Services (Cost-Optimized)
+### 3. Authentication & Database (cognito.yaml, dynamodb-multi-env.yaml)
+**Purpose**: Secure user management and scalable data storage
+
+#### 🔑 AWS Cognito User Pools
+- **User Authentication**: Email-based signup/login
+- **JWT Tokens**: Secure API access with automatic expiry
+- **Multi-tenant**: Company-based data isolation
+- **Password Policies**: Configurable security requirements
+
+#### 🗄️ DynamoDB Tables
+- **Projects Table**: Company projects with GSI for querying
+- **Tasks Table**: Project tasks with assignee indexing
+- **Deployments Table**: Blue/green deployment tracking
+- **Pay-per-request**: Scales automatically with usage
+
+### 4. Core Services (Cost-Optimized)
 - **ECS Fargate**: Container orchestration (0.25 vCPU, 0.5GB RAM) - ~$5/month
 - **ECR**: Container registry (500MB free tier) - $0/month
 - **ALB**: Load balancing (shared across services) - ~$16/month
+- **Cognito**: User authentication (50K MAUs free) - $0/month
+- **DynamoDB**: NoSQL database (25GB free) - $0/month
 - **CloudWatch**: Logging and monitoring (7-day retention) - ~$1/month
-- **Parameter Store**: Configuration management (10K parameters free) - $0/month
 
-### 4. CI/CD Pipeline
+### 5. CI/CD Pipeline
 - **GitHub**: Repository hosting (free)
 - **GitHub Actions**: Automated deployment (free for public repos)
 - **CloudFormation**: Infrastructure as Code (free)
@@ -229,25 +257,48 @@ TaskMaster VPC: 10.1.0.0/16
 
 ```
 📦 Deploy-App-ECS-AWS/
+├── 📂 .github/workflows/           # CI/CD Pipeline
+│   ├── deploy.yml                  # Main deployment workflow
+│   └── dev-deploy.yml              # Development deployment
 ├── 📂 app/backend/                 # 🐍 Flask API Application
-│   ├── 📄 app.py                   # Main API with CORS support
+│   ├── 📄 app.py                   # Main API with Cognito + DynamoDB
 │   ├── 🐳 Dockerfile               # Container configuration
-│   └── 📋 requirements.txt         # Python dependencies
-├── 📂 infrastructure/dev/          # ☁️ CloudFormation Templates
-│   └── 📄 dev-stack.yaml          # Application deployment
-├── 📄 vpc.yaml                     # 🌐 Network foundation (FREE)
-├── 📄 iam-roles.yaml               # 🔐 Security roles (FREE)
-├── 📄 ecr.yaml                     # 📦 Container registry (FREE)
-├── 📄 ecs-cluster-free.yaml        # 🚀 ECS resources (FREE)
-├── 📄 alb-paid.yaml                # ⚖️ Load balancer (PAID)
-├── 📄 codebuild-project.yaml       # 🔨 CI/CD build project
-├── 📄 start-build-cors.json        # 🔧 Build script with CORS
-├── 📄 demo-frontend.html           # 🌐 Web dashboard
-├── 📄 task-definition-update.json  # 📋 ECS task configuration
-├── 📄 open-demo.ps1                # 🚀 Demo launcher script
-├── 📄 COST-CONTROL-GUIDE.md        # 💰 Daily workflow guide
-├── 📄 USE-CASE-SCENARIO.md         # 📖 Business context
-└── 📄 DEV-SETUP-GUIDE.md           # 🛠️ Setup instructions
+│   └── 📋 requirements.txt         # Python dependencies (boto3, PyJWT)
+├── 📂 infrastructure/              # Infrastructure as Code
+│   ├── 📂 cloudformation/          # CloudFormation Templates
+│   │   ├── vpc.yaml                # Network foundation (FREE)
+│   │   ├── iam-roles.yaml          # Security roles (FREE)
+│   │   ├── ecr.yaml                # Container registry (FREE)
+│   │   ├── ecs-cluster.yaml        # ECS cluster (FREE)
+│   │   ├── alb.yaml                # Load balancer (PAID)
+│   │   ├── alb-staging.yaml        # Staging load balancer (PAID)
+│   │   ├── cognito.yaml            # User authentication (FREE)
+│   │   ├── dynamodb-multi-env.yaml # Database tables (FREE)
+│   │   └── codebuild.yaml          # CI/CD build project
+│   └── 📂 environments/            # Environment-Specific
+│       ├── 📂 dev/                 # Development
+│       │   └── app-stack.yaml      # Dev application stack
+│       └── 📂 staging/             # Staging
+│           └── app-stack.yaml      # Staging application stack
+├── 📂 config/                      # Configuration Files
+│   ├── build-config.json           # CodeBuild configuration
+│   ├── build-config-cognito.json   # Build with authentication
+│   └── task-definition.json        # ECS task definition
+├── 📂 scripts/                     # Automation Scripts
+│   ├── 📂 build/                   # Build scripts
+│   │   └── buildspec.yml           # CodeBuild spec
+│   └── 📂 utils/                   # Utility scripts
+│       └── open-demo.ps1           # Demo launcher
+├── 📂 docs/                        # Documentation
+│   ├── COST-CONTROL-GUIDE.md       # Cost optimization strategies
+│   ├── DEV-SETUP-GUIDE.md          # Development setup
+│   └── USE-CASE-SCENARIO.md        # Business context
+├── demo-frontend.html              # Frontend demo
+├── cognito-demo.html               # Authentication demo
+├── dynamodb-demo.html              # Database demo
+├── multi-env-dashboard.html        # Multi-environment dashboard
+├── PROJECT-STRUCTURE.md            # Project organization guide
+└── README.md                       # Project documentation
 ```
 
 ## 🎓 **Learning Outcomes**
@@ -262,6 +313,8 @@ By completing this POC, you'll understand:
 - **CloudFormation**: Infrastructure as Code
 - **IAM**: Security roles and permissions
 - **VPC**: Network isolation and security groups
+- **Cognito**: User authentication and JWT token management
+- **DynamoDB**: NoSQL database with auto-scaling and indexing
 
 ### **DevOps Best Practices**
 - **Cost Optimization**: Deploy/delete workflow saves 70% costs
@@ -271,10 +324,12 @@ By completing this POC, you'll understand:
 - **Infrastructure as Code**: Reproducible deployments
 
 ### **Real-World SaaS Architecture**
-- **Multi-tenant design**: Company isolation patterns
-- **API-first approach**: Backend services with frontend flexibility
-- **Scalable infrastructure**: Auto-scaling and load balancing
+- **Multi-tenant design**: Company isolation with Cognito + DynamoDB
+- **API-first approach**: RESTful APIs with JWT authentication
+- **Scalable infrastructure**: Auto-scaling containers and database
 - **Cost-effective development**: Optimize for demo and development workflows
+- **Security best practices**: Token-based auth, encrypted data, IAM roles
+- **Modern authentication**: OAuth 2.0/OpenID Connect standards
 
 ## 🏆 **Success Metrics**
 
@@ -300,22 +355,28 @@ By completing this POC, you'll understand:
 ### Phase 1: Foundation Infrastructure (FREE - Keep Running)
 ```bash
 # 1. Deploy VPC (Network foundation) - Cost: $0/month
-aws cloudformation deploy --template-file vpc.yaml --stack-name taskmaster-dev-vpc --region us-east-1
+aws cloudformation deploy --template-file infrastructure/cloudformation/vpc.yaml --stack-name taskmaster-dev-vpc --region us-east-1
 
 # 2. Deploy IAM Roles (Security foundation) - Cost: $0/month
-aws cloudformation deploy --template-file iam-roles.yaml --stack-name taskmaster-dev-iam --region us-east-1 --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation deploy --template-file infrastructure/cloudformation/iam-roles.yaml --stack-name taskmaster-dev-iam --region us-east-1 --capabilities CAPABILITY_NAMED_IAM
 
 # 3. Deploy ECR Repository (Container registry) - Cost: $0/month (500MB free)
-aws cloudformation deploy --template-file ecr.yaml --stack-name taskmaster-dev-ecr --region us-east-1
+aws cloudformation deploy --template-file infrastructure/cloudformation/ecr.yaml --stack-name taskmaster-dev-ecr --region us-east-1
 
 # 4. Deploy FREE ECS Resources - Cost: $0/month
-aws cloudformation deploy --template-file ecs-cluster-free.yaml --stack-name taskmaster-dev-cluster-free --region us-east-1
+aws cloudformation deploy --template-file infrastructure/cloudformation/ecs-cluster.yaml --stack-name taskmaster-dev-cluster-free --region us-east-1
 
 # 5. Deploy CodeBuild Project - Cost: $0/month (pay per build)
-aws cloudformation deploy --template-file codebuild-project.yaml --stack-name taskmaster-dev-codebuild --region us-east-1
+aws cloudformation deploy --template-file infrastructure/cloudformation/codebuild.yaml --stack-name taskmaster-dev-codebuild --region us-east-1
 
-# 6. Build Docker Image with CORS Support
-aws codebuild start-build --cli-input-json file://start-build-cors.json
+# 6. Deploy Authentication (Cognito) - Cost: $0/month (50K users free)
+aws cloudformation deploy --template-file infrastructure/cloudformation/cognito.yaml --stack-name taskmaster-cognito --region us-east-1 --capabilities CAPABILITY_NAMED_IAM
+
+# 7. Deploy Database (DynamoDB) - Cost: $0/month (25GB free)
+aws cloudformation deploy --template-file infrastructure/cloudformation/dynamodb-multi-env.yaml --stack-name taskmaster-dev-dynamodb --region us-east-1 --parameter-overrides Environment=dev
+
+# 8. Build Docker Image with Authentication + Database
+aws codebuild start-build --cli-input-json file://config/build-config-cognito.json
 ```
 
 ## 💰 Multi-Environment Daily Workflow (Cost Control)
@@ -323,12 +384,12 @@ aws codebuild start-build --cli-input-json file://start-build-cors.json
 ### 🌅 **Start Demo Day** (~$1.40/day)
 ```bash
 # Deploy Dev Environment
-aws cloudformation deploy --template-file alb-paid.yaml --stack-name taskmaster-dev-alb --region us-east-1
-aws cloudformation deploy --template-file infrastructure/dev/dev-stack.yaml --stack-name taskmaster-dev-app --region us-east-1 --capabilities CAPABILITY_IAM
+aws cloudformation deploy --template-file infrastructure/cloudformation/alb.yaml --stack-name taskmaster-dev-alb --region us-east-1
+aws cloudformation deploy --template-file infrastructure/environments/dev/app-stack.yaml --stack-name taskmaster-dev-app --region us-east-1 --capabilities CAPABILITY_IAM
 
 # Deploy Staging Environment
-aws cloudformation deploy --template-file alb-staging.yaml --stack-name taskmaster-staging-alb --region us-east-1
-aws cloudformation deploy --template-file infrastructure/staging/staging-stack.yaml --stack-name taskmaster-staging-app --region us-east-1 --capabilities CAPABILITY_IAM
+aws cloudformation deploy --template-file infrastructure/cloudformation/alb-staging.yaml --stack-name taskmaster-staging-alb --region us-east-1
+aws cloudformation deploy --template-file infrastructure/environments/staging/app-stack.yaml --stack-name taskmaster-staging-app --region us-east-1 --capabilities CAPABILITY_IAM
 
 # Test both environments
 curl http://DEV_ALB_DNS/health
@@ -376,16 +437,21 @@ aws cloudformation describe-stacks --stack-name taskmaster-staging-app --query "
 
 ### **API Endpoints**
 - **Health Check**: `http://ALB_DNS_NAME/health`
-- **Projects**: `http://ALB_DNS_NAME/api/projects`
-- **Tasks**: `http://ALB_DNS_NAME/api/tasks`
+- **Authentication**: `http://ALB_DNS_NAME/api/auth/login` (POST)
+- **User Signup**: `http://ALB_DNS_NAME/api/auth/signup` (POST)
+- **Projects**: `http://ALB_DNS_NAME/api/projects` (GET/POST)
+- **Tasks**: `http://ALB_DNS_NAME/api/tasks` (GET/POST)
 - **Filtered Tasks**: `http://ALB_DNS_NAME/api/tasks?project_id=1`
 
 ### **Dashboard Features**
-- ✅ **System Health**: Real-time status monitoring
-- ✅ **Project Management**: Website Redesign, Mobile App Development
-- ✅ **Task Tracking**: Design mockups, Implementation progress
-- ✅ **Team Assignments**: Lisa, Mike with status updates
+- ✅ **System Health**: Real-time status monitoring with auth status
+- ✅ **User Authentication**: Login/logout with JWT tokens
+- ✅ **Project Management**: Create, view, and manage projects
+- ✅ **Task Tracking**: Assign tasks with real-time updates
+- ✅ **Multi-tenant**: Company-based data isolation
+- ✅ **Database Integration**: Real DynamoDB data vs mock data
 - ✅ **Responsive Design**: Works on desktop, tablet, mobile
+- ✅ **Multi-Environment**: Dev and staging environments
 
 ## 🔧 Troubleshooting
 
@@ -398,8 +464,8 @@ aws cloudformation describe-stacks --stack-name taskmaster-staging-app --query "
 
 **Solution**:
 ```bash
-# Rebuild with CORS support
-aws codebuild start-build --cli-input-json file://start-build-cors.json
+# Rebuild with Authentication + Database support
+aws codebuild start-build --cli-input-json file://config/build-config-cognito.json
 
 # Force ECS deployment
 aws ecs update-service --cluster dev-cluster --service taskmaster-backend-dev --force-new-deployment
@@ -445,7 +511,7 @@ aws ecs describe-services --cluster dev-cluster --services taskmaster-backend-de
 aws logs tail /ecs/taskmaster-backend-dev --follow
 
 # Rebuild Application
-aws codebuild start-build --cli-input-json file://start-build-cors.json
+aws codebuild start-build --cli-input-json file://config/build-config-cognito.json
 aws ecs update-service --cluster dev-cluster --service taskmaster-backend-dev --force-new-deployment
 ```
 

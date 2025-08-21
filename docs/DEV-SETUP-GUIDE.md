@@ -12,20 +12,20 @@
 ```bash
 # Deploy VPC and base infrastructure
 aws cloudformation deploy \
-  --template-file vpc.yaml \
+  --template-file infrastructure/cloudformation/vpc.yaml \
   --stack-name taskmaster-dev-vpc \
   --region us-east-1
 
 # Deploy ECS cluster
 aws cloudformation deploy \
-  --template-file ecs-cluster.yaml \
+  --template-file infrastructure/cloudformation/ecs-cluster.yaml \
   --stack-name taskmaster-dev-cluster \
   --region us-east-1 \
   --capabilities CAPABILITY_IAM
 
 # Deploy application stack
 aws cloudformation deploy \
-  --template-file infrastructure/dev/dev-stack.yaml \
+  --template-file infrastructure/environments/dev/app-stack.yaml \
   --stack-name taskmaster-dev-app \
   --region us-east-1 \
   --capabilities CAPABILITY_IAM
